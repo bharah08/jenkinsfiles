@@ -1,0 +1,84 @@
+pipeline{
+    agent any
+    tools{
+        maven 'maven'
+    }
+     parameters {
+        booleanParam(name: 'skip_test', defaultValue: false, description: 'Set to true to skip the test stage')
+    }
+      environment{
+        SCANNER_HOME= tool 'sonar'
+    }
+    stages{
+        stage('checkout-code'){
+            steps{
+              git 'https://github.com/bharah08/taxi-booking.git'
+            }
+        }
+        stage('unit-test'){
+            steps{
+                sh 'mvn test'
+            }
+        }
+        stage('build-package'){
+            steps{
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+    stage('SonarQube analysis') {
+            environment {
+            scannerHome = tool 'sonar'
+            }
+        steps { 
+        withSonarQubeEnv('sonar') { // If you have configured more than one global server connection, you can specify its name
+            sh "${scannerHome}/bin/sonar-scanner"
+    }
+  }
+    }
+    stage("Quality Gate") {
+            steps {
+              timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true
+              }
+            }
+          }
+          stage('Deploy') {
+            when { expression { params.skip_test != false } }
+      steps {
+           nexusArtifactUploader(
+        nexusVersion: 'nexus3',
+        protocol: 'http',
+        nexusUrl: '43.204.144.20:8081',
+        groupId: 'com.example.maven-project',
+        version: '1.0-SNAPSHOT',
+        repository: 'taxi-webapp',
+        credentialsId: 'nexus',
+        artifacts: [
+            [artifactId: 'maven-project',
+             classifier: '',
+             file: 'taxi-booking/target/taxi-booking-1.0.1.war',
+             type: 'war']
+        ]
+     )
+      }
+    }
+    stage('deploy dev-server'){
+        steps{
+            sh 'cp taxi-booking/target/taxi-booking-1.0.1.war /var/lib/tomcat9/webapps'
+        }
+    }
+    stage('testing-application in qa'){
+        steps{
+            echo "testing done"
+        }
+    }
+    stage('deploy in production'){
+        steps{
+            input  "waiting for manager approvel"
+            sshagent(['tommy-remote']) {
+    sh 'scp -o StrictHostKeyChecking=no taxi-booking/target/taxi-booking-1.0.1.war ubuntu@35.154.5.36:/var/lib/tomcat9/webapps'
+}
+        }
+    }
+    }
+    }
