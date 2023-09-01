@@ -1,0 +1,53 @@
+def COLOR_MAP = [
+    'SUCCESS': 'good', 
+    'FAILURE': 'danger',
+]
+pipeline {
+    agent any
+tools{
+    maven 'maven'
+}
+environment {
+        registry = "bharath0812/java"
+        BUILD_NUMBER='6.0'
+        registryCredential = 'docker-hub'
+    }
+    stages {
+        stage('checkout') {
+            steps {
+                git 'https://github.com/bharah08/ecom.git'
+            }
+        }
+        stage('build-package'){
+            steps{
+                sh 'mvn clean install'
+            }
+        }
+        stage('docker-build'){
+            steps{
+                script {
+                dockerImage = docker.build registry + ":$BUILD_NUMBER"
+              }
+            }
+        }
+        stage('docker-image push to hub'){
+            steps{
+script {
+              docker.withRegistry( '', registryCredential ) {
+                dockerImage.push("$BUILD_NUMBER")
+              }
+            }
+            }
+        }
+       
+    }
+    post {
+        always {
+            echo 'Slack Notifications.'
+            slackSend channel: '#devops',
+                color: COLOR_MAP[currentBuild.currentResult],
+                message: "*${currentBuild.currentResult}:* Job ${env.JOB_NAME} build ${env.BUILD_NUMBER} \n More info at: ${env.BUILD_URL}"
+            }        
+
+        }
+}
