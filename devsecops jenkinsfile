@@ -1,30 +1,33 @@
 pipeline {
     agent any
     tools{
+        jdk 'java'
         nodejs 'node'
     }
     environment {
-        registry = "bharath0812/nodejs"
-        BUILD_NUMBER='3.0'
-        registryCredential = 'docker'
+        SCANNER_HOME = tool 'sonar'
+        registry = "bharath0812/youtube"
+        BUILD_NUMBER='1.0'
+        registryCredential = 'docker-hub'
     }
 
     stages {
         stage('checkout-code') {
             steps {
-               checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/bharah08/Amazon-FE.git']])
+               git branch: 'main', url: 'https://github.com/bharah08/a-youtube-clone-app.git'
             }
         }
-         stage('SonarQube analysis') {
-            environment {
-            scannerHome = tool 'sonar'
+      stage('Sonar Analysis') {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh ''' 
+                    $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=youtube \
+                    -Dsonar.java.binaries=. \
+                    -Dsonar.projectKey=youtube 
+                    '''
+                }
             }
-        steps { 
-        withSonarQubeEnv('sonar') { // If you have configured more than one global server connection, you can specify its name
-            sh "${scannerHome}/bin/sonar-scanner"
-    }
-  }
-    }
+        }
     stage("Quality Gate") {
             steps {
               timeout(time: 1, unit: 'HOURS') {
@@ -66,7 +69,7 @@ script {
         }
         stage ("deploy on container"){
             steps{
-                sh 'docker run -d --name az -p 3008:3000 bharath0812/nodejs:3.0'
+                sh 'docker run -d --name you -p 3008:3000 bharath0812/youtube:3.0'
             }
         }
     }
