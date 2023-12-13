@@ -1,0 +1,25 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('git-checkout') {
+            steps {
+               git branch: 'main', url: 'https://github.com/bharah08/a-youtube-clone-app.git' 
+            }
+        }
+        stage('ecr-login') {
+            steps {
+                sh 'aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 520578451691.dkr.ecr.ap-south-1.amazonaws.com'
+            }
+        }
+        stage('build&push-ecr') {
+            steps {
+                sh '''
+                docker build -t test .
+                docker tag test:latest 520578451691.dkr.ecr.ap-south-1.amazonaws.com/test:latest
+                docker push 520578451691.dkr.ecr.ap-south-1.amazonaws.com/test:latest 
+                '''
+            }
+        }
+    }
+}
