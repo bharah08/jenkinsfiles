@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+tools{
+    maven 'maven'
+}
+parameters {
+  string description: 'choose which stage you build ?', name: 'goal'
+}
+
+    stages {
+        stage('checkout'){
+            steps{
+                git branch: 'dev', url: 'https://github.com/bharah08/webapp.git'
+            }
+        }
+        stage('test') {
+            when {
+                expression { params.goal == 'test' }
+            }
+            steps {
+                sh 'mvn test'
+                // Your build steps go here
+            }
+        }
+
+        stage('build') {
+            when {
+                expression { params.goal == 'build' }
+            }
+            steps {
+                sh 'mvn install -DskipTests=true'
+                // Your test steps go here
+            }
+        }
+
+        // Add more stages as needed
+    }
+
+    // Rest of the pipeline definition
+}
