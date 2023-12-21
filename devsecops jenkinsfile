@@ -52,11 +52,6 @@ pipeline{
                  sh "docker build -t bharath0812/nodejs:5.0 ."
             }
         }
-         stage("trivy-scan"){
-            steps{
-                 sh "trivy image bharath0812/nodejs:5.0 "
-            }
-        }
          stage("TRIVY"){
             steps{
                 sh "trivy image bharath0812/nodejs:5.0 > trivy.txt" 
