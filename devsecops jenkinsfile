@@ -1,76 +1,91 @@
-pipeline {
+pipeline{
     agent any
     tools{
-        jdk 'java'
-        nodejs 'node'
+        jdk 'java17'
+        nodejs 'nodejs'
     }
     environment {
-        SCANNER_HOME = tool 'sonar'
-        registry = "bharath0812/youtube"
-        BUILD_NUMBER='1.0'
-        registryCredential = 'docker-hub'
+        SCANNER_HOME=tool 'sonar'
     }
-
     stages {
-        stage('checkout-code') {
-            steps {
-               git branch: 'main', url: 'https://github.com/bharah08/a-youtube-clone-app.git'
+        stage('clean workspace'){
+            steps{
+                cleanWs()
             }
         }
-      stage('Sonar Analysis') {
+        stage('Checkout from Git'){
+            steps{
+                git 'https://github.com/bharah08/Zomato-Clone.git'
+            }
+        }
+        stage('Sonar Analysis') {
             steps {
                 withSonarQubeEnv('sonar') {
                     sh ''' 
-                    $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=youtube \
+                    $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomoto \
                     -Dsonar.java.binaries=. \
-                    -Dsonar.projectKey=youtube 
+                    -Dsonar.projectKey=zomoto 
                     '''
                 }
             }
         }
-    stage("Quality Gate") {
+          stage("Quality Gate") {
             steps {
               timeout(time: 1, unit: 'HOURS') {
                 waitForQualityGate abortPipeline: true
               }
             }
           }
-           stage('Install Dependencies') {
+        stage('Install Dependencies') {
             steps {
                 sh "npm install"
             }
         }
-         stage('OWASP Dependency Check') {
+        
+        stage('TRIVY FS SCAN') {
             steps {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'dp-check'
-                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+                sh "trivy fs . > trivyfs.txt"
             }
         }
-         stage('docker-build'){
+        stage("docker-build-image"){
             steps{
-                script {
-                dockerImage = docker.build registry + ":$BUILD_NUMBER"
-              }
+                 sh "docker build -t bharath0812/nodejs:5.0 ."
             }
         }
-        stage ('docker image scan by trivy'){
+         stage("trivy-scan"){
             steps{
-                sh 'trivy image $registry:$BUILD_NUMBER'
+                 sh "trivy image bharath0812/nodejs:5.0 "
             }
         }
-                stage('docker-image push to hub'){
+         stage("TRIVY"){
             steps{
-script {
-              docker.withRegistry( '', registryCredential ) {
-                dockerImage.push("$BUILD_NUMBER")
-              }
-            }
+                sh "trivy image bharath0812/nodejs:5.0 > trivy.txt" 
             }
         }
-        stage ("deploy on container"){
+        stage("Docker  Push"){
             steps{
-                sh 'docker run -d --name you -p 3008:3000 bharath0812/youtube:3.0'
+                script{
+                  withDockerRegistry(credentialsId: 'docker-hub') {
+     sh 'docker push bharath0812/nodejs:5.0'
+}
+                }
             }
+        }
+       
+        stage('Deploy to dev container'){
+            steps{
+                sh 'docker run -d --name zomato -p 3000:3000 bharath0812/nodejs:5.0'
+            }
+        }
+    }
+    post{
+        success {
+            echo 'The pipeline has successfully completed. Performing success actions...'
+            emailext attachLog: true, body: 'check the build status', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'lingambharath45@gmail.com'
+        }
+        failure {
+            echo 'The pipeline has failed. Performing failure actions...'
+            emailext attachLog: true, body: 'check the build status', subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'lingambharath45@gmail.com'
         }
     }
 }
