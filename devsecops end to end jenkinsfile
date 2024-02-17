@@ -1,0 +1,80 @@
+pipeline{
+    agent any
+    tools{
+        maven 'maven'
+        jdk 'jdk-17'
+    }
+    
+    environment{
+        SCANNER_HOME= tool 'sonar'
+    }
+    stages{
+     stage('git-checkout'){
+         steps{
+             git branch: 'production', url: 'https://github.com/bharah08/Healthcare.git'
+         }
+     }
+     
+     stage('unit-test'){
+         
+         steps{
+             sh 'mvn test'
+         }
+     }
+     
+        stage('Sonar Analysis') {
+            steps {
+               withSonarQubeEnv('sonar'){
+                   sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=health-care \
+                   -Dsonar.java.binaries=. \
+                   -Dsonar.projectKey=health-care '''
+               }
+            }
+        }
+      stage("Quality Gate") {
+            steps {
+              timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true
+              }
+            }
+          }
+          	stage('OWASP Dependency Check') {
+            steps {
+               dependencyCheck additionalArguments: ' --scan ./ ', odcInstallation: 'dp-check'
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('build-package'){
+            steps{
+                sh 'mvn clean install -DskipTests=true'
+            }
+        }
+         
+         stage('deploy to nexus'){
+             steps{
+                 withMaven(globalMavenSettingsConfig: 'nexus-upload', jdk: 'jdk-17', maven: 'maven', mavenSettingsConfig: '', traceability: true) {
+    sh 'mvn deploy -DskipTests=true'
+}
+             }
+         }
+         stage ('docker-image build'){
+             steps{
+                 sh 'docker build -t bharath0812/healthcare:3.0 .'
+             }
+         } 
+       stage ('image scaan by trivy'){
+             steps{
+                 sh 'trivy image bharath0812/healthcare:3.0'
+             }
+         }
+         stage ('docker image push to hub'){
+             steps{
+                 script{
+                 withDockerRegistry(credentialsId: 'dockerhub') {
+    sh 'docker push bharath0812/healthcare:3.0'
+                 }
+}
+             }
+         }
+    }
+}
