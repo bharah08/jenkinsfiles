@@ -1,0 +1,75 @@
+@Library('my-lib') _
+pipeline {
+    agent any
+tools{
+    maven 'maven'
+}
+environment{
+        SCANNER_HOME= tool 'sonar'
+        appRegistry = "211125513262.dkr.ecr.ap-south-1.amazonaws.com/java-book"
+        tagname = "1.0"
+}
+    stages {
+        stage('github') {
+            steps {
+               git 'https://github.com/bharah08/onlinebookstore-javaproject.git' 
+            }
+        }
+        stage('unit-test'){
+            steps{
+                script{
+                    unittest()
+                }
+            }
+        }
+        stage('packahge-build'){
+            steps{
+                script{
+                    build()
+                }
+            }
+        }
+        stage('sonarqube-scan'){
+            steps{
+                script{
+                    sonarqube()
+                }
+            }
+        }
+        stage('quality-gate'){
+            steps{
+                script{
+                    qualitygate()
+                }
+            }
+        }
+          stage('ecr-login'){
+            steps{
+                script{
+                    ecrlogin()
+                }
+            }
+        }
+         stage('docker-build'){
+            steps{
+                script{
+                    dockerbuild()
+                }
+            }
+        }
+         stage('trivy-scan'){
+            steps{
+                script{
+                    trivyscan()
+                }
+            }
+        }
+           stage('ecr-push'){
+            steps{
+                script{
+                    ecrpush()
+                }
+            }
+        }
+    }
+}
